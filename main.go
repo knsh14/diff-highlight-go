@@ -15,16 +15,11 @@ import (
 )
 
 var (
-	// ColorPattern defines color pattern
-	ColorPattern = regexp.MustCompile(`^\\x1b\[[0-9;]*m`)
-	// HunkPattern defines hunk
-	HunkPattern = regexp.MustCompile(`^(\\x1b\[[0-9;]*m)*\@\@`)
-
-	// AddPattern defines add line pattern
-	AddPattern = regexp.MustCompile(`^(\\x1b\[[0-9;]*m)*\\+`)
-
-	// RemovedPattern defines removed line pattern
-	RemovedPattern = regexp.MustCompile(`(\\x1b\[[0-9;]*m)*^\\-`)
+	ColorPattern     = regexp.MustCompile(`^\\x1b\[[0-9;]*m`)
+	TailColorPattern = regexp.MustCompile(`\\x1b\[[0-9;]*m$`)
+	HunkPattern      = regexp.MustCompile(`^(\\x1b\[[0-9;]*m)*\@\@`)
+	AddPattern       = regexp.MustCompile(`^(\\x1b\[[0-9;]*m)*\+`)
+	RemovedPattern   = regexp.MustCompile(`^(\\x1b\[[0-9;]*m)*-`)
 )
 
 // DiffContext contains infomation about diff
@@ -71,17 +66,13 @@ func (dc *DiffContext) handleLine(input string) error {
 		dc.ShowHunk()
 		dc.Added = []string{}
 		dc.Removed = []string{}
-		b, err := regexp.MatchString("[\\@ ]", input)
+		b, err := regexp.MatchString(`^(\\x1b\[[0-9;]*m)*[\@ ]`, input)
 		if err != nil {
 			return err
 		}
 		dc.InHunk = b
 	}
 	return nil
-}
-
-func isInHunk(in string) bool {
-	return false
 }
 
 func isRemovedLine(in string) bool {
@@ -135,18 +126,17 @@ func printQuotedLine(s string) {
 
 func highlighPair(added, removed string) (string, string) {
 
-	addedRune, removedRune := []rune(added), []rune(removed)
 	seenPlusMinus := false
 	addedPrefixIndex, removedPrefixIndex := 0, 0
 	for addedPrefixIndex < len(added) && removedPrefixIndex < len(removed) {
 		if loc := ColorPattern.FindStringIndex(added[addedPrefixIndex:]); loc != nil {
-			addedPrefixIndex += loc[1] - 1
+			addedPrefixIndex += loc[1]
 		} else if loc := ColorPattern.FindStringIndex(removed[removedPrefixIndex:]); loc != nil {
-			removedPrefixIndex += loc[1] - 1
+			removedPrefixIndex += loc[1]
 		} else if added[addedPrefixIndex] == removed[removedPrefixIndex] {
 			addedPrefixIndex++
 			removedPrefixIndex++
-		} else if !seenPlusMinus && removed[removedPrefixIndex+1] == '-' && added[addedPrefixIndex+1] == '+' {
+		} else if !seenPlusMinus && removed[removedPrefixIndex] == '-' && added[addedPrefixIndex] == '+' {
 			seenPlusMinus = true
 			addedPrefixIndex++
 			removedPrefixIndex++
@@ -155,13 +145,13 @@ func highlighPair(added, removed string) (string, string) {
 		}
 	}
 
-	addedSuffixIndex, removedSuffixIndex := len(addedRune)-1, len(removedRune)-1
-	for addedSuffixIndex > 0 && removedSuffixIndex > 0 {
-		if loc := ColorPattern.FindStringIndex(added[:addedSuffixIndex]); loc != nil {
-			addedPrefixIndex = loc[1]
-		} else if loc := ColorPattern.FindStringIndex(removed[:removedSuffixIndex]); loc != nil {
-			removedPrefixIndex -= loc[1]
-		} else if addedRune[addedSuffixIndex] == removedRune[removedSuffixIndex] {
+	addedSuffixIndex, removedSuffixIndex := len(added)-1, len(removed)-1
+	for addedSuffixIndex > addedPrefixIndex && removedSuffixIndex > removedPrefixIndex {
+		if loc := TailColorPattern.FindStringIndex(added[:addedSuffixIndex]); loc != nil {
+			addedPrefixIndex = loc[1] - 1
+		} else if loc := TailColorPattern.FindStringIndex(removed[:removedSuffixIndex]); loc != nil {
+			removedPrefixIndex = loc[1] - 1
+		} else if added[addedSuffixIndex] == removed[removedSuffixIndex] {
 			addedSuffixIndex--
 			removedSuffixIndex--
 		} else {
