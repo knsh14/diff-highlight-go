@@ -6,7 +6,6 @@ import (
 	"os"
 	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/pkg/errors"
 )
@@ -33,7 +32,7 @@ func DiffHighlight(scanner *bufio.Scanner) error {
 
 	for scanner.Scan() {
 		t := scanner.Text()
-		ul := UnescapedLine(t)
+		ul := unescapedLine(t)
 		err := dc.handleLine(ul)
 		if err != nil {
 			return errors.Wrap(err, "failed handle line")
@@ -46,10 +45,9 @@ func DiffHighlight(scanner *bufio.Scanner) error {
 	return nil
 }
 
-// UnescapedLine retuns line with color info
-func UnescapedLine(s string) string {
+func unescapedLine(s string) string {
 	quoted := strconv.Quote(s)
-	return strings.Trim(quoted, "\"")
+	return quoted[1 : len(quoted)-1]
 }
 
 func (dc *DiffContext) handleLine(input string) error {
